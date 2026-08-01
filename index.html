@@ -3,7 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <title>ASCEND — The Staircase</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="description" content="Climb sixty steps of moral choices and mental trials to reach the summit.">
+<meta name="theme-color" content="#0d1117">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <style>
   :root{
     --ink:#0d1117;
@@ -1419,6 +1424,13 @@ function endGame(won){
     <div class="statBox"><div class="n">${falls}</div><div class="l">Falls</div></div>
   `;
   endScreen.style.display='flex';
+}
+
+// Register service worker (required for PWA/TWA installability)
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js').catch(()=>{ /* non-fatal in local/file testing */ });
+  });
 }
 
 // initial idle render before start

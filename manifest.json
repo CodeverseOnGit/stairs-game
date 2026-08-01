@@ -1,11 +1,39 @@
 {
-  "background_color": "#ffffff",
-  "dir": "ltr",
-  "display": "standalone",
-  "name": "ascend-the-stairs.netlify",
-  "orientation": "any",
+  "name": "Ascend — The Staircase",
+  "short_name": "Ascend",
+  "description": "Climb sixty steps of moral choices and mental trials to reach the summit.",
+  "start_url": "/index.html",
+  "id": "/index.html",
   "scope": "/",
-  "short_name": "ascend-the-stairs.netlify",
-  "start_url": "/",
-  "theme_color": "#ffffff"
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "categories": ["games", "puzzle"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }
