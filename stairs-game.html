@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ASCEND — The Staircase</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root{
+    --ink:#0d1117;
+    --parchment:#e9e2d0;
+    --gold:#c9a24b;
+    --gold-bright:#f0c869;
+    --blood:#8a2b2b;
+    --teal:#2f6f66;
+    --panel:#16181f;
+    --panel2:#1d212b;
+    --text:#eae6db;
+    --muted:#9a978c;
+    --fontDisplay: 'Georgia', 'Iowan Old Style', serif;
+    --fontBody: 'Avenir Next', 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:var(--fontBody);}
+  #canvas-wrap{position:fixed;inset:0;}
+  canvas{display:block;}
+
+  #hud{
+    position:fixed; top:0; left:0; right:0; padding:18px 26px;
+    display:flex; justify-content:space-between; align-items:flex-start;
+    pointer-events:none; z-index:20; font-family:var(--fontBody);
+  }
+  #progressWrap{
+    pointer-events:auto;
+    background:linear-gradient(180deg, rgba(22,24,31,.85), rgba(22,24,31,.6));
+    border:1px solid rgba(201,162,75,.35);
+    border-radius:14px; padding:10px 16px; backdrop-filter:blur(6px);
+    min-width:260px;
+  }
+  #stepLabel{color:var(--gold-bright); font-family:var(--fontDisplay); letter-spacing:.05em; font-size:14px; margin-bottom:6px;}
+  #barTrack{width:100%; height:8px; background:#0009; border-radius:6px; overflow:hidden; border:1px solid #0006;}
+  #barFill{height:100%; width:0%; background:linear-gradient(90deg,var(--blood),var(--gold),var(--teal)); transition:width .6s cubic-bezier(.2,.8,.2,1);}
+
+  #streakWrap{
+    pointer-events:auto;
+    background:linear-gradient(180deg, rgba(22,24,31,.85), rgba(22,24,31,.6));
+    border:1px solid rgba(201,162,75,.35); border-radius:14px; padding:10px 16px;
+    color:var(--text); font-size:13px; text-align:right; backdrop-filter:blur(6px);
+  }
+  #streakWrap b{color:var(--gold-bright); font-family:var(--fontDisplay); font-size:16px;}
+
+  #centerMsg{
+    position:fixed; top:46%; left:50%; transform:translate(-50%,-50%) scale(.9);
+    font-family:var(--fontDisplay); font-size:44px; letter-spacing:.06em;
+    color:var(--gold-bright); text-shadow:0 4px 30px rgba(0,0,0,.8);
+    opacity:0; pointer-events:none; z-index:30; transition:opacity .4s, transform .4s;
+    text-align:center;
+  }
+  #centerMsg.show{opacity:1; transform:translate(-50%,-50%) scale(1);}
+  #centerMsg.good{color:#8fe3b0;}
+  #centerMsg.bad{color:#e08a8a;}
+
+  #modalOverlay{
+    position:fixed; inset:0; background:radial-gradient(ellipse at center, rgba(10,10,14,.75), rgba(4,4,6,.95));
+    display:none; align-items:center; justify-content:center; z-index:50;
+    backdrop-filter:blur(3px);
+  }
+  #modalOverlay.active{display:flex;}
+  #modal{
+    width:min(760px, 92vw); max-height:88vh; overflow:auto;
+    background:linear-gradient(180deg, var(--panel2), var(--panel));
+    border:1px solid rgba(201,162,75,.4); border-radius:18px;
+    box-shadow:0 30px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+    padding:30px 34px 26px; position:relative; animation:riseIn .45s cubic-bezier(.2,.9,.25,1);
+  }
+  @keyframes riseIn{from{opacity:0; transform:translateY(40px) scale(.97);} to{opacity:1; transform:translateY(0) scale(1);}}
+
+  #modalKicker{font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--gold); margin-bottom:8px; font-weight:600;}
+  #modalTitle{font-family:var(--fontDisplay); font-size:26px; color:var(--text); margin:0 0 14px; line-height:1.3;}
+  #modalBody{color:var(--muted); font-size:15px; line-height:1.6; margin-bottom:20px;}
+
+  #timerBarTrack{height:5px; width:100%; background:#0007; border-radius:4px; overflow:hidden; margin-bottom:20px; display:none;}
+  #timerBarFill{height:100%; width:100%; background:linear-gradient(90deg,var(--teal),var(--gold),var(--blood)); transform-origin:left;}
+
+  .choiceGrid{display:flex; flex-direction:column; gap:10px;}
+  .choiceGrid.grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .choiceGrid.grid4{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+
+  .choiceBtn{
+    text-align:left; background:var(--panel); border:1px solid #33384433; border:1px solid rgba(255,255,255,.08);
+    color:var(--text); padding:14px 16px; border-radius:10px; cursor:pointer; font-size:15px;
+    font-family:var(--fontBody); transition:all .15s ease; position:relative;
+  }
+  .choiceBtn:hover:not(:disabled){border-color:var(--gold); background:#232735; transform:translateX(4px);}
+  .choiceBtn:disabled{cursor:default;}
+  .choiceBtn.correct{background:rgba(63,140,90,.25); border-color:#4caf7a; color:#c7f0d6;}
+  .choiceBtn.wrong{background:rgba(140,63,63,.25); border-color:#c85555; color:#f0c7c7;}
+
+  .center{ text-align:center; }
+  .bigStage{ display:flex; flex-direction:column; align-items:center; gap:18px; }
+
+  .reactionCircle{
+    width:180px; height:180px; border-radius:50%; background:#c0392b;
+    display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--fontDisplay);
+    font-size:20px; cursor:pointer; user-select:none; transition:background .1s; box-shadow:0 10px 30px rgba(0,0,0,.5);
+  }
+  .reactionCircle.green{background:#27ae60;}
+
+  .stroopWord{font-family:var(--fontDisplay); font-size:56px; font-weight:bold; margin:10px 0;}
+
+  .rpsRow{display:flex; gap:16px; justify-content:center; margin-top:6px;}
+  .rpsBtn{font-size:40px; background:var(--panel); border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:16px 22px; cursor:pointer; transition:.15s;}
+  .rpsBtn:hover:not(:disabled){transform:translateY(-4px); border-color:var(--gold);}
+
+  .rotWrap{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px;}
+  .rotOption{background:var(--panel); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
+  .rotOption:hover:not(:disabled){border-color:var(--gold);}
+
+  .gridEmoji{display:grid; gap:6px; margin:10px auto; width:fit-content;}
+  .gridEmoji div{width:52px; height:52px; display:flex; align-items:center; justify-content:center; font-size:26px; background:var(--panel); border-radius:8px; cursor:pointer; border:1px solid rgba(255,255,255,.06);}
+  .gridEmoji div:hover{border-color:var(--gold);}
+
+  .shapeCluster{font-size:30px; line-height:1.5; letter-spacing:8px; background:var(--panel); padding:20px; border-radius:12px; margin:10px 0; max-width:480px;}
+
+  .mathDisplay{font-family:var(--fontDisplay); font-size:38px; color:var(--gold-bright); margin:14px 0;}
+
+  .inputRow{display:flex; gap:10px; justify-content:center; margin-top:10px;}
+  .textInput{background:#0d0f14; border:1px solid rgba(255,255,255,.15); color:var(--text); padding:10px 14px; border-radius:8px; font-size:18px; width:140px; text-align:center;}
+  .submitBtn{background:var(--gold); color:#2a1e05; border:none; padding:10px 22px; border-radius:8px; font-weight:700; cursor:pointer; font-size:15px;}
+  .submitBtn:hover{background:var(--gold-bright);}
+  .submitBtn:disabled{opacity:.4; cursor:default;}
+
+  .wordTiles{display:flex; gap:6px; justify-content:center; margin:4px 0;}
+  .wordTile{width:44px; height:44px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:20px; border-radius:6px; background:#22262f; color:var(--text); text-transform:uppercase; border:1px solid rgba(255,255,255,.1);}
+  .wordTile.correctPos{background:#3f8c5a;}
+  .wordTile.wrongPos{background:#b8933a;}
+  .wordTile.absent{background:#2a2d34; color:#777;}
+
+  .hangmanFig{font-family:monospace; white-space:pre; font-size:16px; color:var(--gold-bright); text-align:center; margin-bottom:10px;}
+  .letterBank{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; max-width:480px; margin:0 auto;}
+  .letterBtn{width:34px; height:34px; border-radius:6px; background:var(--panel); border:1px solid rgba(255,255,255,.1); color:var(--text); cursor:pointer; font-weight:700;}
+  .letterBtn:hover:not(:disabled){border-color:var(--gold);}
+  .letterBtn:disabled{opacity:.3;}
+
+  .letterGrid{display:grid; gap:4px; margin:10px auto; width:fit-content;}
+  .letterGrid div{width:36px; height:36px; display:flex; align-items:center; justify-content:center; background:var(--panel); border-radius:6px; cursor:pointer; font-family:monospace; font-size:16px; border:1px solid rgba(255,255,255,.06);}
+  .letterGrid div.picked{background:var(--gold); color:#2a1e05;}
+
+  .marbleJar{width:220px; height:260px; margin:10px auto; border-radius:0 0 100px 100px / 0 0 40px 40px; border:4px solid #6a7280; position:relative; overflow:hidden; background:radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.1), transparent 60%), #10131a;}
+  .marbleJar .marble{position:absolute; border-radius:50%; box-shadow:inset -3px -3px 5px rgba(0,0,0,.4), inset 2px 2px 3px rgba(255,255,255,.3);}
+
+  #footerHint{font-size:12px; color:var(--muted); text-align:center; margin-top:16px; letter-spacing:.03em;}
+
+  #startScreen, #endScreen{
+    position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; flex-direction:column;
+    background:radial-gradient(ellipse at 50% 30%, #1a1d26, #05060a 75%); text-align:center; padding:20px;
+  }
+  #startScreen h1, #endScreen h1{font-family:var(--fontDisplay); font-size:clamp(40px,7vw,72px); color:var(--gold-bright); margin:0 0 6px; letter-spacing:.04em; text-shadow:0 6px 40px rgba(201,162,75,.25);}
+  #startScreen p, #endScreen p{color:var(--muted); max-width:560px; font-size:15px; line-height:1.7; margin:0 auto 24px;}
+  .playBtn{background:linear-gradient(180deg,var(--gold-bright),var(--gold)); border:none; color:#241a05; font-family:var(--fontDisplay); font-size:20px; padding:14px 42px; border-radius:40px; cursor:pointer; letter-spacing:.05em; box-shadow:0 10px 40px rgba(201,162,75,.35); transition:.2s;}
+  .playBtn:hover{transform:translateY(-3px); box-shadow:0 14px 50px rgba(201,162,75,.5);}
+  .subline{font-family:var(--fontDisplay); color:var(--gold); font-size:14px; letter-spacing:.3em; text-transform:uppercase; margin-bottom:18px;}
+
+  #endStats{display:flex; gap:26px; margin:20px 0 30px; flex-wrap:wrap; justify-content:center;}
+  .statBox{background:var(--panel); border:1px solid rgba(201,162,75,.3); border-radius:12px; padding:14px 22px; min-width:120px;}
+  .statBox .n{font-family:var(--fontDisplay); font-size:28px; color:var(--gold-bright);}
+  .statBox .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.1em; margin-top:4px;}
+
+  #vignette{position:fixed; inset:0; pointer-events:none; z-index:15; box-shadow: inset 0 0 220px rgba(0,0,0,.75);}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:rgba(201,162,75,.4); border-radius:4px;}
+</style>
+</head>
+<body>
+
+<div id="canvas-wrap"></div>
+<div id="vignette"></div>
+
+<div id="hud">
+  <div id="progressWrap">
+    <div id="stepLabel">STEP 0 / 60</div>
+    <div id="barTrack"><div id="barFill"></div></div>
+  </div>
+  <div id="streakWrap">
+    <div><b id="streakN">0</b> streak</div>
+    <div style="margin-top:4px;">Falls: <span id="fallsN">0</span></div>
+  </div>
+</div>
+
+<div id="centerMsg"></div>
+
+<div id="modalOverlay">
+  <div id="modal">
+    <div id="modalKicker">CHALLENGE</div>
+    <h2 id="modalTitle">Loading...</h2>
+    <div id="timerBarTrack"><div id="timerBarFill"></div></div>
+    <div id="modalBody"></div>
+    <div id="modalStage"></div>
+    <div id="footerHint"></div>
+  </div>
+</div>
+
+<div id="startScreen">
+  <div class="subline">A Vertical Trial of Judgment &amp; Wit</div>
+  <h1>ASCEND</h1>
+  <p>Sixty steps stand between you and the top of the tower. Each one asks something of you — a moral choice, a flash of reason, a test of nerve. Answer well and rise. Answer poorly, or hesitate too long, and the stair beneath you gives way.</p>
+  <button class="playBtn" onclick="startGame()">Begin the Climb</button>
+</div>
+
+<div id="endScreen" style="display:none;">
+  <h1 id="endTitle">The Summit</h1>
+  <p id="endText">You have reached the top.</p>
+  <div id="endStats"></div>
+  <button class="playBtn" onclick="location.reload()">Climb Again</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =========================================================================
+   ASCEND — a stairs game
+   ========================================================================= */
+
+const TOTAL_STEPS = 60;
+let currentStep = 0;
+let streak = 0;
+let falls = 0;
+let correctCount = 0;
+let wrongCount = 0;
+let gameActive = false;
+let activeTimer = null;
+let activeTimerDuration = 0;
+let activeTimerStart = 0;
+let animFrame = null;
+
+// ---------------------------------------------------------------------
+// THREE.JS SCENE SETUP
+// ---------------------------------------------------------------------
+const wrap = document.getElementById('canvas-wrap');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0c12, 0.028);
+scene.background = new THREE.Color(0x0a0c12);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+wrap.appendChild(renderer.domElement);
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Lighting
+const ambient = new THREE.AmbientLight(0x8899cc, 0.35);
+scene.add(ambient);
+const moon = new THREE.DirectionalLight(0xcfd8ff, 0.9);
+moon.position.set(-30, 60, 20);
+moon.castShadow = true;
+moon.shadow.mapSize.set(2048,2048);
+moon.shadow.camera.left=-60; moon.shadow.camera.right=60;
+moon.shadow.camera.top=80; moon.shadow.camera.bottom=-20;
+scene.add(moon);
+
+const torchColor = 0xffb35c;
+const playerLight = new THREE.PointLight(torchColor, 1.6, 22, 2);
+scene.add(playerLight);
+
+// Stair geometry parameters
+const STEP_W = 8, STEP_H = 1.0, STEP_D = 2.0;
+const stepMatA = new THREE.MeshStandardMaterial({color:0x3b3f4a, roughness:.85, metalness:.05});
+const stepMatB = new THREE.MeshStandardMaterial({color:0x33313c, roughness:.85, metalness:.05});
+const railMat = new THREE.MeshStandardMaterial({color:0x9a7b3a, roughness:.4, metalness:.6});
+
+const stairGroup = new THREE.Group();
+scene.add(stairGroup);
+let stepMeshes = [];
+
+function buildStairs(){
+  for(let i=0;i<TOTAL_STEPS+3;i++){
+    const geo = new THREE.BoxGeometry(STEP_W, STEP_H, STEP_D);
+    const mesh = new THREE.Mesh(geo, i%2===0?stepMatA:stepMatB);
+    mesh.position.set(0, i*STEP_H, -i*STEP_D);
+    mesh.receiveShadow = true; mesh.castShadow = true;
+    stairGroup.add(mesh);
+    stepMeshes.push(mesh);
+
+    // side rails posts every 4 steps
+    if(i%4===0){
+      [-1,1].forEach(side=>{
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,2.2,8), railMat);
+        post.position.set(side*STEP_W/2, i*STEP_H+1.1, -i*STEP_D);
+        post.castShadow=true;
+        stairGroup.add(post);
+      });
+    }
+    // torches every 6 steps
+    if(i%6===0){
+      [-1,1].forEach(side=>{
+        const torch = new THREE.Mesh(new THREE.SphereGeometry(0.12,8,8), new THREE.MeshBasicMaterial({color:0xffaa44}));
+        torch.position.set(side*(STEP_W/2+0.4), i*STEP_H+1.6, -i*STEP_D);
+        stairGroup.add(torch);
+        const tlight = new THREE.PointLight(0xffaa44, 0.8, 10);
+        tlight.position.copy(torch.position);
+        stairGroup.add(tlight);
+      });
+    }
+  }
+  // Top platform
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(20,1,14), new THREE.MeshStandardMaterial({color:0x4a4535, roughness:.7}));
+  platform.position.set(0, TOTAL_STEPS*STEP_H, -(TOTAL_STEPS)*STEP_D - 4);
+  platform.receiveShadow = true;
+  stairGroup.add(platform);
+
+  // glowing goal marker
+  const goalGeo = new THREE.TorusGeometry(2,0.15,16,32);
+  const goalMat = new THREE.MeshBasicMaterial({color:0xf0c869});
+  const goal = new THREE.Mesh(goalGeo, goalMat);
+  goal.position.set(0, TOTAL_STEPS*STEP_H+3, -(TOTAL_STEPS)*STEP_D-4);
+  goal.rotation.x = Math.PI/2;
+  stairGroup.add(goal);
+  window._goalMarker = goal;
+}
+buildStairs();
+
+// Player avatar (simple stylized figure)
+const player = new THREE.Group();
+const bodyMat = new THREE.MeshStandardMaterial({color:0x2a4d6e, roughness:.6});
+const cloakMat = new THREE.MeshStandardMaterial({color:0x1c2230, roughness:.9});
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.28,16,16), new THREE.MeshStandardMaterial({color:0xdac2a0}));
+head.position.y = 1.55;
+head.castShadow = true;
+const torso = new THREE.Mesh(new THREE.ConeGeometry(0.42,1.1,10), cloakMat);
+torso.position.y = 0.95;
+torso.castShadow = true;
+player.add(head, torso);
+player.position.set(0, STEP_H, -0.5);
+scene.add(player);
+
+// Star field
+const starGeo = new THREE.BufferGeometry();
+const starCount = 800;
+const starPos = new Float32Array(starCount*3);
+for(let i=0;i<starCount;i++){
+  starPos[i*3] = (Math.random()-0.5)*300;
+  starPos[i*3+1] = Math.random()*150+20;
+  starPos[i*3+2] = (Math.random()-0.5)*300 - 100;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos,3));
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff, size:0.6, transparent:true, opacity:.7}));
+scene.add(stars);
+
+// Camera follow state
+let camTargetPos = new THREE.Vector3();
+let camTargetLook = new THREE.Vector3();
+function updateCameraTargets(){
+  const stepY = currentStep*STEP_H;
+  const stepZ = -currentStep*STEP_D;
+  camTargetPos.set(0, stepY+3.2, stepZ+5.5);
+  camTargetLook.set(0, stepY+1.2, stepZ-2);
+}
+updateCameraTargets();
+camera.position.copy(camTargetPos);
+
+function movePlayerTo(step, cb){
+  const startY = player.position.y, startZ = player.position.z;
+  const endY = step*STEP_H+STEP_H, endZ = -step*STEP_D-0.5;
+  const startTime = performance.now();
+  const dur = 700;
+  function anim(t){
+    const p = Math.min(1,(t-startTime)/dur);
+    const ease = 1-Math.pow(1-p,3);
+    player.position.y = startY + (endY-startY)*ease + Math.sin(p*Math.PI)*0.5;
+    player.position.z = startZ + (endZ-startZ)*ease;
+    player.rotation.z = Math.sin(p*Math.PI)*0.15*(endZ<startZ?1:-1);
+    updateCameraTargets();
+    if(p<1){ requestAnimationFrame(anim); } else { player.position.y=endY; player.position.z=endZ; player.rotation.z=0; if(cb) cb(); }
+  }
+  requestAnimationFrame(anim);
+}
+
+function renderLoop(){
+  camera.position.lerp(camTargetPos, 0.06);
+  const lookTarget = new THREE.Vector3().copy(camTargetLook);
+  const curLook = new THREE.Vector3();
+  camera.getWorldDirection(curLook);
+  camera.lookAt(lookTarget);
+  playerLight.position.set(player.position.x, player.position.y+1.5, player.position.z+1);
+  stars.rotation.y += 0.00008;
+  window._goalMarker.rotation.z += 0.01;
+  renderer.render(scene, camera);
+  animFrame = requestAnimationFrame(renderLoop);
+}
+
+// ---------------------------------------------------------------------
+// UI HELPERS
+// ---------------------------------------------------------------------
+const stepLabel = document.getElementById('stepLabel');
+const barFill = document.getElementById('barFill');
+const streakN = document.getElementById('streakN');
+const fallsN = document.getElementById('fallsN');
+const centerMsg = document.getElementById('centerMsg');
+
+function updateHud(){
+  stepLabel.textContent = `STEP ${currentStep} / ${TOTAL_STEPS}`;
+  barFill.style.width = Math.max(0,Math.min(100,(currentStep/TOTAL_STEPS)*100))+'%';
+  streakN.textContent = streak;
+  fallsN.textContent = falls;
+}
+
+function flashMsg(text, cls, dur=1100){
+  centerMsg.textContent = text;
+  centerMsg.className = 'show '+(cls||'');
+  return new Promise(res=>{
+    setTimeout(()=>{ centerMsg.classList.remove('show'); res(); }, dur);
+  });
+}
+
+function clearTimerBar(){
+  if(activeTimer){ clearInterval(activeTimer); activeTimer=null; }
+  document.getElementById('timerBarTrack').style.display='none';
+}
+function startTimerBar(seconds, onExpire){
+  const track = document.getElementById('timerBarTrack');
+  const fill = document.getElementById('timerBarFill');
+  track.style.display='block';
+  fill.style.transition='none';
+  fill.style.width='100%';
+  requestAnimationFrame(()=>{
+    fill.style.transition = `width ${seconds}s linear`;
+    fill.style.width='0%';
+  });
+  activeTimer = setTimeout(()=>{ onExpire(); }, seconds*1000);
+}
+
+async function resolveOutcome(success, opts){
+  opts = opts||{};
+  clearTimerBar();
+  closeModal();
+  if(success){
+    correctCount++; streak++;
+    const nextStep = Math.min(TOTAL_STEPS, currentStep+1);
+    await flashMsg(opts.msg || '✓ RIGHT — ASCEND', 'good');
+    currentStep = nextStep;
+    updateHud();
+    movePlayerTo(currentStep, ()=>{ afterMove(); });
+  } else {
+    wrongCount++; streak=0; falls++;
+    const dropAmt = opts.severe ? 2 : 1;
+    const nextStep = Math.max(0, currentStep-dropAmt);
+    await flashMsg(opts.msg || '✗ WRONG — YOU FALL', 'bad');
+    currentStep = nextStep;
+    updateHud();
+    movePlayerTo(currentStep, ()=>{ afterMove(); });
+  }
+}
+
+function afterMove(){
+  if(currentStep>=TOTAL_STEPS){
+    endGame(true);
+  } else {
+    setTimeout(()=>{ nextChallenge(); }, 500);
+  }
+}
+
+// ---------------------------------------------------------------------
+// MODAL
+// ---------------------------------------------------------------------
+const modalOverlay = document.getElementById('modalOverlay');
+const modalKicker = document.getElementById('modalKicker');
+const modalTitle = document.getElementById('modalTitle');
+const modalBody = document.getElementById('modalBody');
+const modalStage = document.getElementById('modalStage');
+const footerHint = document.getElementById('footerHint');
+
+function openModal(kicker){
+  modalKicker.textContent = kicker;
+  modalOverlay.classList.add('active');
+}
+function closeModal(){
+  modalOverlay.classList.remove('active');
+  modalStage.innerHTML='';
+  footerHint.textContent='';
+}
+
+// ---------------------------------------------------------------------
+// RNG helpers
+// ---------------------------------------------------------------------
+function rnd(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(arr){ const a=arr.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+// =========================================================================
+// MORAL DILEMMAS (tough choices) — pool
+// =========================================================================
+const dilemmas = [
+{t:"The Overloaded Boat", b:"A small boat is sinking. Taking one more person aboard means everyone likely drowns; leaving them means they drown alone. A stranger begs to be pulled in.",
+ choices:[{txt:"Pull them aboard — share the risk equally", right:true},{txt:"Refuse — protect those already in the boat", right:false}]},
+{t:"The Whistleblower", b:"You discover your company is quietly dumping waste that will sicken a nearby town over decades. Reporting it will cost hundreds of jobs, including yours, immediately.",
+ choices:[{txt:"Report it to regulators", right:true},{txt:"Stay quiet to protect livelihoods", right:false}]},
+{t:"The Locked Door", b:"You have the only key to a stairwell during a fire drill emergency. Opening it early breaks protocol and could cause a stampede; waiting follows the rules but delays evacuation by minutes.",
+ choices:[{txt:"Break protocol, open it now", right:true},{txt:"Wait for the official signal", right:false}]},
+{t:"The Borrowed Answer", b:"A struggling classmate copies your homework without asking. The teacher blames only them and moves to expel them, unaware you were the source.",
+ choices:[{txt:"Speak up and share responsibility", right:true},{txt:"Stay silent and let them take the fall", right:false}]},
+{t:"The Inheritance", b:"Your sibling forged a signature to gain a larger share of your late parent's estate. Exposing it will fracture the family permanently; hiding it means benefiting from a lie.",
+ choices:[{txt:"Expose the forgery", right:true},{txt:"Let it go to preserve the family", right:false}]},
+{t:"The Trolley's Cousin", b:"A runaway cart will kill five strangers unless you divert it — but the only lever also happens to destroy a stranger's life savings stored nearby, ruining them financially forever.",
+ choices:[{txt:"Divert it — save the five lives", right:true},{txt:"Do nothing — avoid ruining the one", right:false}]},
+{t:"The Doctor's Ledger", b:"A wealthy patient offers a huge donation to your clinic if you bump them ahead of a poorer patient with a more urgent, identical condition.",
+ choices:[{txt:"Treat by medical urgency, decline the bribe", right:true},{txt:"Accept — the donation saves many future patients", right:false}]},
+{t:"The Refugee at the Border", b:"An exhausted traveler with no papers asks for shelter overnight during a storm. Local law requires you to report undocumented persons immediately.",
+ choices:[{txt:"Shelter them tonight, report in the morning", right:true},{txt:"Report immediately as required by law", right:false}]},
+{t:"The Silent Witness", b:"You saw your close friend shoplift from a small, struggling family shop. The owner is questioning everyone who was there, including you.",
+ choices:[{txt:"Tell the truth to the owner", right:true},{txt:"Lie to protect your friend", right:false}]},
+{t:"The Algorithm", b:"You're building hiring software. Data shows a 'neutral' model still disadvantages certain groups because of biased historical data. Fixing it costs the company a costly delay.",
+ choices:[{txt:"Delay launch and fix the bias", right:true},{txt:"Ship on time, patch it later", right:false}]},
+{t:"The Dying Man's Secret", b:"On his deathbed, a stranger confesses to a crime that put an innocent person in prison years ago, and asks you to keep the secret to protect his grieving family's name.",
+ choices:[{txt:"Tell the authorities to free the innocent", right:true},{txt:"Honor his dying wish for secrecy", right:false}]},
+{t:"The Two Job Offers", b:"You're offered a lucrative job at a firm you learn quietly exploits underpaid overseas labor, versus a modest job at an honest but struggling nonprofit.",
+ choices:[{txt:"Take the honest, lower-paying job", right:true},{txt:"Take the lucrative job and ignore the practices", right:false}]},
+{t:"The Anonymous Donor", b:"You find a wallet stuffed with cash and no ID except a note reading it was saved for a child's surgery. No one is watching.",
+ choices:[{txt:"Find the owner and return it all", right:true},{txt:"Keep it — no one would ever know", right:false}]},
+{t:"The Group Project", b:"Your team's project succeeds mostly due to your effort, but a teammate who contributed almost nothing suggests presenting it as equal work to get the same credit.",
+ choices:[{txt:"Ask for an honest account of contributions", right:true},{txt:"Go along with equal credit to keep peace", right:false}]},
+{t:"The Corrupt Contract", b:"You can win a bridge-building contract in a poor region by bribing an official — losing means the bridge (and its safety benefits) may never get built by anyone else.",
+ choices:[{txt:"Refuse the bribe, walk away from the deal", right:true},{txt:"Pay the bribe to get the bridge built", right:false}]},
+{t:"The Test Leak", b:"You accidentally receive tomorrow's exam answer key in your inbox. Using it guarantees you a scholarship you desperately need.",
+ choices:[{txt:"Report the leak to your professor", right:true},{txt:"Use it quietly for the scholarship", right:false}]},
+{t:"The Loyal Employee", b:"Your mentor, who helped raise you in your career, is caught embezzling small amounts to cover a family medical bill. You're the only one who noticed.",
+ choices:[{txt:"Report it despite the personal debt owed", right:true},{txt:"Cover for them out of loyalty", right:false}]},
+{t:"The Crowded Lifeboat Redux", b:"Rationing food on a stranded expedition, the guide suggests skipping rations for the oldest member first to stretch supplies for the young.",
+ choices:[{txt:"Ration equally regardless of age", right:true},{txt:"Follow the guide's triage suggestion", right:false}]},
+{t:"The Investigative Story", b:"Publishing a true, damaging story about a public official's past will likely help your career and the public interest, but will also devastate his uninvolved children emotionally.",
+ choices:[{txt:"Publish the true story responsibly", right:true},{txt:"Kill the story to protect the children", right:false}]},
+{t:"The Returned Change", b:"A cashier mistakenly gives you far too much change. Rushing customers behind you would never notice if you simply walked away.",
+ choices:[{txt:"Point out the mistake and return the extra", right:true},{txt:"Keep the extra change silently", right:false}]},
+{t:"The Broken Vow", b:"You promised a dying grandparent you'd keep the family farm forever. Selling it now would fund a life-saving surgery for your own child.",
+ choices:[{txt:"Sell the farm to save your child", right:true},{txt:"Keep the vow and find another way", right:false}]},
+{t:"The Scapegoat", b:"Your manager wrongly blames a quiet, powerless intern for a mistake that was actually a senior executive's fault. Correcting it could anger the executive.",
+ choices:[{txt:"Correct the record, name the real cause", right:true},{txt:"Let the intern take the blame", right:false}]},
+{t:"The Cheating Spouse's Friend", b:"You learn your best friend's spouse is having an affair. Telling them will shatter a decades-long marriage; staying silent means living the lie alongside them.",
+ choices:[{txt:"Tell your friend the truth", right:true},{txt:"Say nothing to preserve their happiness", right:false}]},
+{t:"The Injured Rival", b:"During a championship race, your fiercest rival collapses from an injury steps from the finish line. Stopping to help guarantees you both lose the title you trained years for.",
+ choices:[{txt:"Stop and help your rival", right:true},{txt:"Keep running and win the title", right:false}]},
+{t:"The Data Breach", b:"Your company suffers a breach exposing customer data. Executives want to quietly patch it without notifying anyone, since disclosure would tank the stock and cost jobs.",
+ choices:[{txt:"Push to disclose the breach to customers", right:true},{txt:"Stay quiet and patch it silently", right:false}]},
+{t:"The Family Business", b:"Your family's restaurant will close unless you report a health violation you spotted — one that's minor but technically illegal, kept secret by relatives who depend on the income.",
+ choices:[{txt:"Report the violation to protect customers", right:true},{txt:"Hide it to save the family business", right:false}]},
+{t:"The Soldier's Order", b:"You're ordered to carry out an action you believe is unjust, though legal under wartime command. Refusing means court-martial and disgrace; obeying means participating in what you see as wrong.",
+ choices:[{txt:"Refuse the unjust order", right:true},{txt:"Obey the chain of command", right:false}]},
+{t:"The Adoption Secret", b:"You discover your adopted sibling's birth records reveal a painful truth their adoptive parents chose to hide forever. They ask you directly if you know anything.",
+ choices:[{txt:"Tell them the truth if they ask directly", right:true},{txt:"Lie to protect the family's chosen secret", right:false}]},
+{t:"The Plagiarized Thesis", b:"A brilliant, terminally ill colleague plagiarized part of a paper years ago that's now central to their legacy. Exposing it now would destroy their final months.",
+ choices:[{txt:"Report the plagiarism regardless of timing", right:true},{txt:"Wait until after they pass to say anything", right:false}]},
+{t:"The Neighbor's Dog", b:"Your neighbor's dog is being visibly neglected and underfed daily. Reporting it may get the dog seized and the elderly, lonely owner devastated.",
+ choices:[{txt:"Report the neglect to authorities", right:true},{txt:"Say nothing out of sympathy for the owner", right:false}]},
+{t:"The Voting Bloc", b:"You could swing an election by spreading a technically true but severely misleading statistic about the opposing candidate. It would help policies you believe are good for the country.",
+ choices:[{txt:"Refuse to spread the misleading statistic", right:true},{txt:"Use it because the cause is worth it", right:false}]},
+{t:"The Silent Diagnosis", b:"As a doctor, you find a devastating diagnosis in a patient's scan. They're about to leave for a long-awaited, once-in-a-lifetime trip and ask if everything looks fine.",
+ choices:[{txt:"Tell them the truth now", right:true},{txt:"Let them enjoy the trip, tell them after", right:false}]},
+{t:"The Underpaid Talent", b:"You're a manager who could promote a brilliant but abrasive employee who deserves it on merit, or a mediocre, well-liked one who keeps the team's morale high.",
+ choices:[{txt:"Promote based on merit", right:true},{txt:"Promote for team harmony instead", right:false}]},
+{t:"The Found Manuscript", b:"You discover an unpublished manuscript by a late author, found among their private, clearly unfinished papers marked 'do not publish.' Publishing it would earn the estate (and you) a fortune.",
+ choices:[{txt:"Honor their wish, do not publish it", right:true},{txt:"Publish it — the world deserves the work", right:false}]},
+{t:"The Rescued Enemy", b:"On a battlefield, you find a wounded enemy soldier who once nearly killed your comrade. No one else is watching; helping him costs you time and puts you at risk.",
+ choices:[{txt:"Help the wounded enemy soldier", right:true},{txt:"Leave him and move to safety", right:false}]},
+{t:"The Insider Tip", b:"A friend at a company accidentally reveals confidential news that will spike a stock tomorrow. Trading on it would be lucrative and nearly undetectable.",
+ choices:[{txt:"Refuse to trade on the insider tip", right:true},{txt:"Quietly invest before the news breaks", right:false}]},
+{t:"The Grade Inflation", b:"A student with a documented hardship narrowly failed your class through no fault of their effort. Bumping their grade slightly would violate policy but could save their scholarship.",
+ choices:[{txt:"Follow policy, do not alter the grade", right:true},{txt:"Quietly bump the grade to help them", right:false}]},
+{t:"The Company Layoffs", b:"As an executive, you can save more jobs overall by cutting the pay and benefits of everyone equally, or protect senior staff fully and lay off the newest hires entirely.",
+ choices:[{txt:"Share the cuts equally across everyone", right:true},{txt:"Protect seniority, lay off the newest hires", right:false}]},
+{t:"The Witness Protection", b:"You witnessed a powerful figure commit a crime. Testifying will protect future victims but put your own family at serious risk of retaliation.",
+ choices:[{txt:"Testify despite the risk to your family", right:true},{txt:"Stay silent to protect your family", right:false}]},
+{t:"The Charity Overhead", b:"You run a charity and could report inflated 'program spending' numbers to attract more donors who would otherwise give to less effective charities, ultimately helping more people.",
+ choices:[{txt:"Report the true, honest numbers", right:true},{txt:"Inflate the numbers for the greater good", right:false}]},
+{t:"The Last Seat", b:"There's one seat left on the last evacuation flight out of a disaster zone. An elderly stranger and a young parent with a sick infant both need it equally desperately.",
+ choices:[{txt:"Give the seat to the parent and infant", right:true},{txt:"Decide by first-come, first-served only", right:false}]},
+{t:"The Ghostwriter", b:"You ghostwrite a politician's memoir and are asked to quietly omit a true but damaging historical fact about their past to protect their campaign.",
+ choices:[{txt:"Refuse to omit the true fact", right:true},{txt:"Omit it as requested for the campaign", right:false}]},
+{t:"The Broken Promise to a Child", b:"You promised your child you'd attend their recital, but a critical, time-sensitive work situation threatens the jobs of your entire team if you don't handle it personally right then.",
+ choices:[{txt:"Keep your promise to your child", right:true},{txt:"Handle the work crisis instead", right:false}]},
+{t:"The Anonymous Reviewer", b:"As a peer reviewer, you recognize a rival's submitted paper has a fatal flaw that would end their career if published — but calling it out means they might suspect and retaliate against you.",
+ choices:[{txt:"Flag the flaw honestly in your review", right:true},{txt:"Stay quiet and let it slide", right:false}]},
+{t:"The Sacrificial Update", b:"A software patch you're releasing will fix a major security hole but will also permanently break a beloved feature that thousands of vulnerable users rely on daily.",
+ choices:[{txt:"Release the patch, prioritize security", right:true},{txt:"Delay the patch to protect the feature", right:false}]},
+{t:"The Stolen Valor", b:"You learn a beloved local hero has been quietly exaggerating their war record for years to inspire kids. Exposing it might crush their community's admiration entirely.",
+ choices:[{txt:"Quietly encourage them to correct the record", right:true},{txt:"Let the inspiring myth continue", right:false}]},
+{t:"The Custody Dilemma", b:"As a judge, evidence suggests both parents love their child, but one offers more financial stability while the other offers a warmer, more present relationship.",
+ choices:[{txt:"Prioritize the warmer, more present parent", right:true},{txt:"Prioritize the financially stable parent", right:false}]},
+{t:"The Delayed Vaccine", b:"You could rush an experimental treatment to market to save lives now, skipping a safety step that normally prevents rare but serious side effects.",
+ choices:[{txt:"Complete the safety step before releasing it", right:true},{txt:"Rush it to market to save lives now", right:false}]},
+{t:"The Betrayed Trust", b:"A friend confides a plan to leave their job to start a competing business. Your boss casually asks if you know why this friend has seemed distracted lately.",
+ choices:[{txt:"Deflect and protect your friend's confidence", right:true},{txt:"Tell your boss what you know", right:false}]},
+{t:"The Overheard Confession", b:"You overhear a stranger on a train confessing to a minor unsolved crime from years ago to a friend. No one else was hurt, and the case is long closed to police.",
+ choices:[{txt:"Leave it be — it's not your place", right:true},{txt:"Report what you heard to police", right:false}]},
+{t:"The Struggling Startup", b:"Your co-founder wants to slightly mislead early investors about user growth numbers to secure funding that would let you actually build the real growth later.",
+ choices:[{txt:"Insist on presenting honest numbers", right:true},{txt:"Go along with the misleading pitch", right:false}]},
+{t:"The Return of the Wallet", b:"You find a rival's wallet full of cash right before a competition where beating them would mean everything to your career.",
+ choices:[{txt:"Return the wallet regardless of rivalry", right:true},{txt:"Turn it in late, after the competition", right:false}]},
+{t:"The Forced Confession", b:"Police pressure you to sign a statement that isn't fully accurate but would 'speed up justice' against someone who's probably guilty anyway.",
+ choices:[{txt:"Refuse to sign an inaccurate statement", right:true},{txt:"Sign it to help convict a likely criminal", right:false}]},
+{t:"The Uneven Split", b:"You and a partner built a business together, but you did roughly 70% of the work. Your partner suggests splitting profits exactly 50/50 'because we're a team.'",
+ choices:[{txt:"Negotiate a fairer split reflecting contribution", right:true},{txt:"Accept the 50/50 split to avoid conflict", right:false}]},
+{t:"The Fake Reference", b:"A close friend, desperate and about to lose their home, asks you to write a glowing professional reference for a job you know they aren't truly qualified for.",
+ choices:[{txt:"Decline to write a dishonest reference", right:true},{txt:"Write the glowing reference anyway", right:false}]},
+{t:"The Silenced Victim", b:"A powerful donor to your organization is accused of misconduct by a junior staffer. Believing the accuser fully could cost the organization its biggest source of funding and many jobs.",
+ choices:[{txt:"Support a full, fair investigation", right:true},{txt:"Quietly discourage the accusation", right:false}]},
+{t:"The Unequal Rescue", b:"A wildfire threatens two homes you can save only one of: a family's only home, or a stranger's mansion housing a valuable art collection insured for millions that funds a foundation for the poor.",
+ choices:[{txt:"Save the family's only home", right:true},{txt:"Save the mansion for the foundation's sake", right:false}]},
+{t:"The Late Return", b:"You borrowed a rare book from a friend and accidentally damaged it. Replacing it exactly is impossible; hiding the damage would likely never be noticed.",
+ choices:[{txt:"Admit the damage and offer to make it right", right:true},{txt:"Return it quietly and say nothing", right:false}]},
+{t:"The Group Chat Leak", b:"You're added to a group chat by mistake and see private messages revealing a coworker plans to quit and badmouth the company. You could quietly warn management.",
+ choices:[{txt:"Do not use information you weren't meant to see", right:true},{txt:"Warn management using what you saw", right:false}]},
+{t:"The Halfway Truth", b:"A journalist asks you, an eyewitness, about an incident. Telling the full truth implicates a friend in a minor way; a half-truth protects them without technically lying.",
+ choices:[{txt:"Give the full, complete truth", right:true},{txt:"Give a technically true but incomplete answer", right:false}]},
+{t:"The Costly Recall", b:"Your factory finds a rare defect that could injure a small percentage of customers. A full recall would bankrupt the company and end hundreds of jobs; a quiet fix going forward is cheaper.",
+ choices:[{txt:"Issue the full recall despite the cost", right:true},{txt:"Quietly fix it going forward only", right:false}]},
+{t:"The Favor Owed", b:"An old friend who once helped you through a crisis now asks you to cover for them at work after they made a serious, costly error.",
+ choices:[{txt:"Decline to cover up their serious error", right:true},{txt:"Cover for them out of gratitude", right:false}]},
+{t:"The Uncomfortable Truth", b:"Your best friend asks for honest feedback on a passion project they've poured years into. It's genuinely not good, and the truth may crush their confidence right before a big pitch.",
+ choices:[{txt:"Give honest, constructive feedback", right:true},{txt:"Tell them it's great to protect their confidence", right:false}]},
+{t:"The Orphaned Fortune", b:"A dying stranger with no known family leaves you, their caretaker, a fortune in an unsigned note. Legally it should go to the state; morally they clearly wanted you to have it.",
+ choices:[{txt:"Report it properly through legal channels", right:true},{txt:"Quietly keep it as they seemingly wished", right:false}]},
+{t:"The Split Verdict", b:"As a juror, the evidence is genuinely ambiguous, but eleven other jurors are pressuring you to just agree so everyone can go home for the holidays.",
+ choices:[{txt:"Hold your ground on genuine doubt", right:true},{txt:"Agree with the majority to end deliberation", right:false}]},
+{t:"The Sponsored Review", b:"A brand offers you a large sponsorship to review a product you've tested and found to be mediocre, as long as you keep the review 'positive and vague.'",
+ choices:[{txt:"Give an honest review or decline the deal", right:true},{txt:"Take the deal and write it positively anyway", right:false}]},
+{t:"The Quiet Resignation", b:"You realize a well-meaning volunteer coordinator is too disorganized to keep leading a disaster relief effort effectively, though they mean well and need the sense of purpose.",
+ choices:[{txt:"Address it honestly for the mission's sake", right:true},{txt:"Say nothing to protect their feelings", right:false}]},
+{t:"The Second Chance", b:"You're hiring and a strong candidate discloses a past felony conviction from a decade ago, fully served and evidently reformed. A less qualified candidate has a clean record.",
+ choices:[{txt:"Hire based on current qualifications and merit", right:true},{txt:"Choose the clean-record candidate to avoid risk", right:false}]},
+{t:"The Shared Umbrella", b:"During a sudden storm, you have the only umbrella and a long walk ahead. A stranger with a baby has none and is heading roughly your direction.",
+ choices:[{txt:"Offer to share the umbrella with them", right:true},{txt:"Keep the umbrella to yourself", right:false}]},
+{t:"The Unfair Advantage", b:"You notice a competitor in a contest accidentally left a critical resource unlocked that would give you a decisive edge if you quietly used it without telling them.",
+ choices:[{txt:"Tell them about the unlocked resource", right:true},{txt:"Use the advantage without saying anything", right:false}]},
+{t:"The Painful Reunion", b:"A biological parent who abandoned you as a child now, dying, asks to reconnect for closure. Agreeing might reopen wounds; refusing might bring you future regret.",
+ choices:[{txt:"Agree to see them for both your sakes", right:true},{txt:"Refuse to protect your own peace", right:false}]},
+];
+
+// =========================================================================
+// STROOP / word lists / question banks
+// =========================================================================
+const colorList = [
+  {name:'RED', hex:'#e74c3c'}, {name:'BLUE', hex:'#3498db'}, {name:'GREEN', hex:'#2ecc71'},
+  {name:'YELLOW', hex:'#f1c40f'}, {name:'PURPLE', hex:'#9b59b6'}, {name:'ORANGE', hex:'#e67e22'}
+];
+
+const triviaBank = [
+ {q:"What is the capital of Australia?", opts:["Sydney","Canberra","Melbourne","Perth"], a:1},
+ {q:"Which planet has the most moons (as commonly cited)?", opts:["Jupiter","Mars","Saturn","Neptune"], a:2},
+ {q:"Who wrote 'Romeo and Juliet'?", opts:["Charles Dickens","William Shakespeare","Mark Twain","Jane Austen"], a:1},
+ {q:"What gas do plants primarily absorb for photosynthesis?", opts:["Oxygen","Nitrogen","Carbon Dioxide","Hydrogen"], a:2},
+ {q:"How many continents are there?", opts:["5","6","7","8"], a:2},
+ {q:"What is the largest ocean on Earth?", opts:["Atlantic","Indian","Arctic","Pacific"], a:3},
+ {q:"Which element has the chemical symbol 'Fe'?", opts:["Fluorine","Iron","Lead","Francium"], a:1},
+ {q:"In what year did World War II end?", opts:["1943","1945","1947","1950"], a:1},
+ {q:"What is the smallest prime number?", opts:["0","1","2","3"], a:2},
+ {q:"Which country is home to the Great Barrier Reef?", opts:["Brazil","Australia","Mexico","Thailand"], a:1},
+ {q:"What is the hardest natural substance on Earth?", opts:["Gold","Quartz","Diamond","Titanium"], a:2},
+ {q:"Which organ pumps blood through the human body?", opts:["Liver","Heart","Lungs","Kidney"], a:1},
+ {q:"How many strings does a standard violin have?", opts:["4","5","6","7"], a:0},
+ {q:"What is the freezing point of water in Celsius?", opts:["-10°","0°","10°","32°"], a:1},
+ {q:"Which language has the most native speakers worldwide?", opts:["English","Hindi","Spanish","Mandarin Chinese"], a:3},
+ {q:"Who painted the Mona Lisa?", opts:["Michelangelo","Leonardo da Vinci","Raphael","Donatello"], a:1},
+ {q:"What is the longest river in the world?", opts:["Amazon","Nile","Yangtze","Mississippi"], a:1},
+ {q:"Which planet is known as the Red Planet?", opts:["Venus","Jupiter","Mars","Mercury"], a:2},
+ {q:"What is the currency of Japan?", opts:["Won","Yuan","Yen","Ringgit"], a:2},
+ {q:"How many bones are in the adult human body?", opts:["186","206","226","246"], a:1},
+ {q:"Which country invented paper?", opts:["Egypt","Greece","China","India"], a:2},
+ {q:"What is the tallest mountain in the world?", opts:["K2","Kangchenjunga","Mount Everest","Denali"], a:2},
+ {q:"Which gas makes up most of Earth's atmosphere?", opts:["Oxygen","Carbon Dioxide","Nitrogen","Hydrogen"], a:2},
+ {q:"Who developed the theory of relativity?", opts:["Isaac Newton","Albert Einstein","Niels Bohr","Galileo Galilei"], a:1},
+ {q:"What is the smallest country in the world by area?", opts:["Monaco","San Marino","Vatican City","Liechtenstein"], a:2},
+ {q:"Which ocean is the deepest?", opts:["Atlantic","Indian","Southern","Pacific"], a:3},
+ {q:"How many players are on a standard soccer team on the field?", opts:["9","10","11","12"], a:2},
+ {q:"What is the chemical symbol for gold?", opts:["Go","Gd","Au","Ag"], a:2},
+ {q:"Which country hosted the first modern Olympic Games?", opts:["France","Greece","Italy","United Kingdom"], a:1},
+];
+
+const wordConnectSets = [
+  {words:["Apple","Banana","Carrot","Mango"], odd:2, theme:"fruits"},
+  {words:["Guitar","Violin","Drum","Hammer"], odd:3, theme:"instruments"},
+  {words:["Paris","London","Cairo","Amazon"], odd:3, theme:"capital cities"},
+  {words:["Salmon","Trout","Eagle","Bass"], odd:2, theme:"fish"},
+  {words:["Oak","Maple","Rose","Pine"], odd:2, theme:"trees"},
+  {words:["Hammer","Wrench","Screwdriver","Carrot"], odd:3, theme:"tools"},
+  {words:["Lion","Tiger","Leopard","Sparrow"], odd:3, theme:"big cats"},
+  {words:["Jupiter","Mars","Venus","Everest"], odd:3, theme:"planets"},
+  {words:["Football","Basketball","Tennis","Chess"], odd:3, theme:"physical sports"},
+  {words:["Ruby","Emerald","Sapphire","Granite"], odd:3, theme:"gemstones"},
+  {words:["Whisper","Shout","Murmur","Purple"], odd:3, theme:"ways of speaking"},
+  {words:["January","March","July","Monday"], odd:3, theme:"months"},
+  {words:["Sedan","Truck","Bicycle","Airplane"], odd:2, theme:"land vehicles"},
+  {words:["Novel","Poem","Essay","Painting"], odd:3, theme:"written works"},
+  {words:["Copper","Iron","Silver","Oxygen"], odd:3, theme:"metals"},
+];
+
+const hiddenWords5 = ["CHAIR","MOUSE","TIGER","BREAD","CLOUD","STONE","PLANT","SWORD","RIVER","GRAPE","HOUSE","TABLE","BEACH","SMILE","CROWN","GHOST","MAGIC","TRAIN","LEMON","OCEAN"];
+const wordGuessBank = ["PLANE","BRAVE","STORM","CANDY","FLAME","GLASS","QUIET","SHINE","TRUST","WORLD","LIGHT","DREAM","SPICE","CHARM","FROST","MIGHT","PRIZE","SOLAR","VIVID","WITTY"];
+
+// =========================================================================
+// CHALLENGE POOL — build a randomized queue mixing dilemmas + minigames
+// =========================================================================
+const minigameTypes = [
+  'reaction','stroop','elemental','rotation','sequence','finddiff','shapecount',
+  'quickmath','oddoneout','marblejar','solveforx','quickquiz',
+  'wordguess','hangman','wordconnect','wordsearch'
+];
+
+let challengeQueue = [];
+function buildQueue(){
+  challengeQueue = [];
+  const dilemmaPool = shuffle(dilemmas);
+  let di = 0;
+  for(let i=0;i<TOTAL_STEPS;i++){
+    // roughly every 2nd-3rd step is a moral dilemma, rest are minigames
+    if(i%2===0 && di<dilemmaPool.length){
+      challengeQueue.push({type:'dilemma', data:dilemmaPool[di++]});
+    } else {
+      challengeQueue.push({type:pick(minigameTypes)});
+    }
+  }
+}
+
+function nextChallenge(){
+  if(currentStep>=TOTAL_STEPS){ endGame(true); return; }
+  const challenge = challengeQueue[currentStep] || {type:pick(minigameTypes)};
+  if(challenge.type==='dilemma') runDilemma(challenge.data);
+  else runMinigame(challenge.type);
+}
+
+function runMinigame(type){
+  switch(type){
+    case 'reaction': return gameReaction();
+    case 'stroop': return gameStroop();
+    case 'elemental': return gameElemental();
+    case 'rotation': return gameRotation();
+    case 'sequence': return gameSequence();
+    case 'finddiff': return gameFindDiff();
+    case 'shapecount': return gameShapeCount();
+    case 'quickmath': return gameQuickMath();
+    case 'oddoneout': return gameOddOneOut();
+    case 'marblejar': return gameMarbleJar();
+    case 'solveforx': return gameSolveForX();
+    case 'quickquiz': return gameQuickQuiz();
+    case 'wordguess': return gameWordGuess();
+    case 'hangman': return gameHangman();
+    case 'wordconnect': return gameWordConnect();
+    case 'wordsearch': return gameWordSearch();
+    default: return gameQuickMath();
+  }
+}
+
+// =========================================================================
+// DILEMMA RUNNER
+// =========================================================================
+function runDilemma(d){
+  openModal('MORAL CHOICE');
+  modalTitle.textContent = d.t;
+  modalBody.textContent = d.b;
+  modalStage.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'choiceGrid';
+  const choices = shuffle(d.choices);
+  choices.forEach(c=>{
+    const btn = document.createElement('button');
+    btn.className = 'choiceBtn';
+    btn.textContent = c.txt;
+    btn.onclick = ()=>{
+      Array.from(grid.children).forEach(b=>b.disabled=true);
+      btn.classList.add(c.right?'correct':'wrong');
+      setTimeout(()=>resolveOutcome(c.right, {msg: c.right ? '✓ A JUST CHOICE' : '✗ AN UNJUST CHOICE'}), 500);
+    };
+    grid.appendChild(btn);
+  });
+  modalStage.appendChild(grid);
+  footerHint.textContent = 'There is no timer — choose with conscience.';
+}
+
+// =========================================================================
+// MINIGAME: Reaction Tap
+// =========================================================================
+function gameReaction(){
+  openModal('SPEED · REACTION TAP');
+  modalTitle.textContent = 'Reaction Tap';
+  modalBody.textContent = 'Wait for the circle to turn green, then tap it instantly. Tap too soon and you fall.';
+  modalStage.innerHTML = '';
+  const wrapDiv = document.createElement('div'); wrapDiv.className='bigStage';
+  const circle = document.createElement('div'); circle.className='reactionCircle'; circle.textContent='WAIT...';
+  wrapDiv.appendChild(circle);
+  modalStage.appendChild(wrapDiv);
+  footerHint.textContent = 'Tap only when green.';
+
+  let resolved = false;
+  let greenAt = 0;
+  const delay = rnd(1200,3200);
+  const failEarly = ()=>{
+    if(resolved) return; resolved = true;
+    resolveOutcome(false, {msg:'✗ FALSE START'});
+  };
+  circle.onclick = ()=>{
+    if(resolved) return;
+    if(circle.classList.contains('green')){
+      resolved = true;
+      const rt = performance.now()-greenAt;
+      resolveOutcome(true, {msg: rt<400 ? '✓ LIGHTNING FAST' : '✓ ON TIME'});
+    } else {
+      failEarly();
+    }
+  };
+  setTimeout(()=>{
+    if(resolved) return;
+    circle.classList.add('green');
+    circle.textContent = 'TAP!';
+    greenAt = performance.now();
+    setTimeout(()=>{ if(!resolved){ resolved=true; resolveOutcome(false,{msg:'✗ TOO SLOW'}); } }, 1000);
+  }, delay);
+}
+
+// =========================================================================
+// MINIGAME: Stroop Match
+// =========================================================================
+function gameStroop(){
+  openModal('SPEED · STROOP MATCH');
+  modalTitle.textContent = 'Stroop Match';
+  modalBody.textContent = 'Tap the button matching the INK COLOR of the word — not the word itself.';
+  const wordDef = pick(colorList);
+  let inkDef = pick(colorList);
+  // force mismatch most of the time for real stroop effect
+  if(Math.random()<0.85){ while(inkDef.name===wordDef.name){ inkDef = pick(colorList); } }
+  modalStage.innerHTML = '';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const word = document.createElement('div'); word.className='stroopWord'; word.textContent = wordDef.name; word.style.color = inkDef.hex;
+  stage.appendChild(word);
+  const optRow = document.createElement('div'); optRow.className='rpsRow';
+  const options = shuffle(colorList).slice(0,4);
+  if(!options.find(o=>o.name===inkDef.name)) options[0]=inkDef;
+  shuffle(options).forEach(o=>{
+    const b = document.createElement('button'); b.className='choiceBtn'; b.style.color=o.hex; b.style.fontWeight='bold'; b.textContent=o.name;
+    b.onclick = ()=>{
+      Array.from(optRow.children).forEach(x=>x.disabled=true);
+      const correct = o.name===inkDef.name;
+      b.classList.add(correct?'correct':'wrong');
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ SHARP EYE':'✗ MISREAD'}), 450);
+    };
+    optRow.appendChild(b);
+  });
+  optRow.className='choiceGrid grid2';
+  stage.appendChild(optRow);
+  modalStage.appendChild(stage);
+  startTimerBar(6, ()=>resolveOutcome(false,{msg:'✗ TOO SLOW'}));
+}
+
+// =========================================================================
+// MINIGAME: Ice / Water / Fire (Fire > Ice > Water > Fire)
+// =========================================================================
+function gameElemental(){
+  openModal('SPEED · ELEMENTAL DUEL');
+  modalTitle.textContent = 'Ice · Water · Fire';
+  modalBody.textContent = 'Fire beats Ice. Ice beats Water. Water beats Fire. Choose your element against the tower spirit.';
+  modalStage.innerHTML = '';
+  const row = document.createElement('div'); row.className='rpsRow';
+  const elems = [{k:'fire',e:'🔥'},{k:'ice',e:'❄️'},{k:'water',e:'💧'}];
+  const beats = {fire:'ice', ice:'water', water:'fire'};
+  elems.forEach(el=>{
+    const b = document.createElement('button'); b.className='rpsBtn'; b.textContent=el.e;
+    b.onclick = ()=>{
+      Array.from(row.children).forEach(x=>x.disabled=true);
+      const botChoice = pick(elems).k;
+      let win;
+      if(el.k===botChoice) win = Math.random()<0.5; // tie -> coinflip
+      else win = beats[el.k]===botChoice;
+      modalBody.textContent = `You chose ${el.k.toUpperCase()}. The spirit chose ${botChoice.toUpperCase()}.`;
+      setTimeout(()=>resolveOutcome(win,{msg: win?'✓ ELEMENTAL VICTORY':'✗ OVERPOWERED'}), 700);
+    };
+    row.appendChild(b);
+  });
+  modalStage.appendChild(row);
+  footerHint.textContent = 'Choose wisely, quickly.';
+  startTimerBar(7, ()=>resolveOutcome(false,{msg:'✗ HESITATED'}));
+}
+
+// =========================================================================
+// MINIGAME: Mental Rotation
+// =========================================================================
+function gameRotation(){
+  openModal('JUMP · MENTAL ROTATION');
+  modalTitle.textContent = 'Mental Rotation';
+  modalBody.textContent = 'Find the option that matches the target arrow\'s rotation exactly.';
+  const targetDeg = pick([0,45,90,135,180,225,270,315]);
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const target = document.createElement('div');
+  target.innerHTML = arrowSVG(targetDeg, '#f0c869');
+  stage.appendChild(target);
+  const grid = document.createElement('div'); grid.className='rotWrap';
+  let options = [targetDeg];
+  while(options.length<4){
+    const d = pick([0,45,90,135,180,225,270,315]);
+    if(!options.includes(d)) options.push(d);
+  }
+  options = shuffle(options);
+  options.forEach(deg=>{
+    const opt = document.createElement('button'); opt.className='rotOption';
+    opt.innerHTML = arrowSVG(deg,'#eae6db');
+    opt.onclick = ()=>{
+      Array.from(grid.children).forEach(x=>x.disabled=true);
+      const correct = deg===targetDeg;
+      opt.style.borderColor = correct?'#4caf7a':'#c85555';
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ ALIGNED':'✗ MISALIGNED'}),450);
+    };
+    grid.appendChild(opt);
+  });
+  stage.appendChild(grid);
+  modalStage.appendChild(stage);
+  startTimerBar(8, ()=>resolveOutcome(false,{msg:'✗ TOO SLOW'}));
+}
+function arrowSVG(deg,color){
+  return `<svg width="70" height="70" viewBox="0 0 70 70" style="transform:rotate(${deg}deg)">
+    <line x1="35" y1="58" x2="35" y2="12" stroke="${color}" stroke-width="6" stroke-linecap="round"/>
+    <polygon points="35,4 24,22 46,22" fill="${color}"/>
+  </svg>`;
+}
+
+// =========================================================================
+// MINIGAME: Sequence Predict
+// =========================================================================
+function gameSequence(){
+  openModal('JUMP · SEQUENCE PREDICT');
+  modalTitle.textContent = 'Sequence Predict';
+  const patterns = [
+    ()=>{ const start=rnd(1,10), step=rnd(2,6); const seq=[0,1,2,3].map(i=>start+i*step); return {seq, next:start+4*step}; },
+    ()=>{ const start=rnd(1,4); const seq=[start,start*2,start*4,start*8]; return {seq, next:start*16}; },
+    ()=>{ const start=rnd(2,10); const seq=[start,start+1,start+3,start+6]; return {seq, next: start+10}; }, // +1,+2,+3,+4
+    ()=>{ let a=rnd(1,3), b=rnd(1,3)+a; const seq=[a,b,a+b,a+2*b]; return {seq, next: seq[3]+seq[2]}; }, // fibonacci-like actual: a,b,a+b,b+(a+b)
+    ()=>{ const start=rnd(50,100), step=rnd(3,9); const seq=[0,1,2,3].map(i=>start-i*step); return {seq, next:start-4*step}; }, // descending
+    ()=>{ const start=rnd(2,5); const seq=[start,start*start,start*start*start].slice(0,3); const s2=rnd(2,4); const sq=[s2,s2*s2,s2*s2*s2,Math.pow(s2,4)]; return {seq:sq.slice(0,3), next:sq[3]}; }, // powers
+    ()=>{ const a=rnd(2,5); const seq=[a,a+2,a+6,a+12]; return {seq, next:a+20}; }, // +2,+4,+6,+8
+    ()=>{ const start=rnd(3,9); const seq=[start,start*2-1,start*3-2,start*4-3]; return {seq, next:start*5-4}; }, // n*k - (k-1)
+    ()=>{ const nums=[1,1,2,3,5]; const off=rnd(0,3); const shifted=nums.map(n=>n+off); return {seq:shifted.slice(0,4), next:shifted[4]}; }, // fibonacci
+    ()=>{ const a=rnd(4,9); const seq=[a,a-1,a*2-1,a*2-2]; return {seq, next:a*3-2}; }, // pattern of pairs
+  ];
+  const chosen = pick(patterns)();
+  modalBody.textContent = 'What number comes next in the sequence?';
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const disp = document.createElement('div'); disp.className='mathDisplay';
+  disp.textContent = chosen.seq.join('  ,  ') + '  ,  ?';
+  stage.appendChild(disp);
+  const grid = document.createElement('div'); grid.className='choiceGrid grid4';
+  let opts = [chosen.next];
+  while(opts.length<4){
+    const fake = chosen.next + pick([-6,-4,-3,-2,-1,1,2,3,4,6].filter(x=>x!==0));
+    if(!opts.includes(fake) && fake>=0) opts.push(fake);
+  }
+  opts = shuffle(opts);
+  opts.forEach(n=>{
+    const b = document.createElement('button'); b.className='choiceBtn center'; b.textContent=n;
+    b.onclick=()=>{
+      Array.from(grid.children).forEach(x=>x.disabled=true);
+      const correct = n===chosen.next;
+      b.classList.add(correct?'correct':'wrong');
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ PATTERN FOUND':'✗ WRONG PATTERN'}),450);
+    };
+    grid.appendChild(b);
+  });
+  stage.appendChild(grid);
+  modalStage.appendChild(stage);
+  startTimerBar(10, ()=>resolveOutcome(false,{msg:'✗ TIME UP'}));
+}
+
+// =========================================================================
+// MINIGAME: Find the Difference (emoji grids)
+// =========================================================================
+function gameFindDiff(){
+  openModal('JUMP · FIND THE DIFFERENCE');
+  modalTitle.textContent = 'Find the Difference';
+  modalBody.textContent = 'Two grids look identical. Tap the tile in the SECOND grid that differs from the first.';
+  const emojiSet = ['🌙','⭐','🔥','💧','🍃','🗡️','🛡️','💰','🕯️','🪙'];
+  const size = 4;
+  const base = [];
+  for(let i=0;i<size*size;i++) base.push(pick(emojiSet));
+  const diffIdx = rnd(0,size*size-1);
+  const grid2 = base.slice();
+  let repl = pick(emojiSet);
+  while(repl===base[diffIdx]) repl = pick(emojiSet);
+  grid2[diffIdx]=repl;
+
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const label1 = document.createElement('div'); label1.style.color='#9a978c'; label1.style.fontSize='12px'; label1.textContent='REFERENCE';
+  const g1 = document.createElement('div'); g1.className='gridEmoji'; g1.style.gridTemplateColumns=`repeat(${size},1fr)`;
+  base.forEach(e=>{ const d=document.createElement('div'); d.textContent=e; d.style.cursor='default'; g1.appendChild(d); });
+  const label2 = document.createElement('div'); label2.style.color='#9a978c'; label2.style.fontSize='12px'; label2.textContent='FIND THE ODD TILE HERE';
+  const g2 = document.createElement('div'); g2.className='gridEmoji'; g2.style.gridTemplateColumns=`repeat(${size},1fr)`;
+  grid2.forEach((e,idx)=>{
+    const d=document.createElement('div'); d.textContent=e;
+    d.onclick=()=>{
+      Array.from(g2.children).forEach(x=>x.onclick=null);
+      const correct = idx===diffIdx;
+      d.style.background = correct?'#3f8c5a':'#8c3f3f';
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ SPOTTED':'✗ MISSED IT'}),450);
+    };
+    g2.appendChild(d);
+  });
+  stage.appendChild(label1); stage.appendChild(g1); stage.appendChild(label2); stage.appendChild(g2);
+  modalStage.appendChild(stage);
+  startTimerBar(12, ()=>resolveOutcome(false,{msg:'✗ TIME UP'}));
+}
+
+// =========================================================================
+// MINIGAME: Shape Count
+// =========================================================================
+function gameShapeCount(){
+  openModal('JUMP · SHAPE COUNT');
+  modalTitle.textContent = 'Shape Count';
+  const shapes = ['●','■','▲','◆','★'];
+  const target = pick(shapes);
+  const others = shapes.filter(s=>s!==target);
+  const total = rnd(14,22);
+  const targetCount = rnd(3,8);
+  let cluster = [];
+  for(let i=0;i<targetCount;i++) cluster.push(target);
+  for(let i=0;i<total-targetCount;i++) cluster.push(pick(others));
+  cluster = shuffle(cluster);
+  modalBody.textContent = `How many ${target} symbols appear below?`;
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const disp = document.createElement('div'); disp.className='shapeCluster center'; disp.textContent = cluster.join(' ');
+  stage.appendChild(disp);
+  const grid = document.createElement('div'); grid.className='choiceGrid grid4';
+  let opts = [targetCount];
+  while(opts.length<4){
+    const fake = targetCount + pick([-3,-2,-1,1,2,3]);
+    if(fake>0 && !opts.includes(fake)) opts.push(fake);
+  }
+  opts = shuffle(opts);
+  opts.forEach(n=>{
+    const b=document.createElement('button'); b.className='choiceBtn center'; b.textContent=n;
+    b.onclick=()=>{
+      Array.from(grid.children).forEach(x=>x.disabled=true);
+      const correct = n===targetCount;
+      b.classList.add(correct?'correct':'wrong');
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ COUNTED RIGHT':'✗ MISCOUNTED'}),450);
+    };
+    grid.appendChild(b);
+  });
+  stage.appendChild(grid);
+  modalStage.appendChild(stage);
+  startTimerBar(14, ()=>resolveOutcome(false,{msg:'✗ TIME UP'}));
+}
+
+// =========================================================================
+// MINIGAME: Quick Math
+// =========================================================================
+function gameQuickMath(){
+  openModal('STRENGTH · QUICK MATH');
+  modalTitle.textContent = 'Quick Math';
+  const a=rnd(2,20), b=rnd(2,20), op=pick(['+','-','×']);
+  let ans;
+  if(op==='+') ans=a+b; else if(op==='-') ans=a-b; else ans=a*b;
+  modalBody.textContent = 'Solve before the timer runs out.';
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const disp = document.createElement('div'); disp.className='mathDisplay'; disp.textContent = `${a} ${op} ${b} = ?`;
+  stage.appendChild(disp);
+  const inputRow = document.createElement('div'); inputRow.className='inputRow';
+  const input = document.createElement('input'); input.className='textInput'; input.type='number';
+  const submit = document.createElement('button'); submit.className='submitBtn'; submit.textContent='Submit';
+  const submitFn = ()=>{
+    submit.disabled=true; input.disabled=true;
+    const correct = parseInt(input.value)===ans;
+    setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ CORRECT':`✗ WRONG (was ${ans})`}),300);
+  };
+  submit.onclick=submitFn;
+  input.onkeydown=(e)=>{ if(e.key==='Enter') submitFn(); };
+  inputRow.appendChild(input); inputRow.appendChild(submit);
+  stage.appendChild(inputRow);
+  modalStage.appendChild(stage);
+  setTimeout(()=>input.focus(),100);
+  startTimerBar(8, ()=>resolveOutcome(false,{msg:`✗ TIME UP (was ${ans})`}));
+}
+
+// =========================================================================
+// MINIGAME: Odd One Out
+// =========================================================================
+function gameOddOneOut(){
+  openModal('STRENGTH · ODD ONE OUT');
+  modalTitle.textContent = 'Odd One Out';
+  modalBody.textContent = 'One number breaks the shared rule. Find it.';
+  const modes = [
+    ()=>{ const base=rnd(2,6); const nums=[base*2,base*4,base*6,base*8, rnd(10,50)*2+1]; return {nums, oddIdx:4, rule:'multiples'}; },
+    ()=>{ const nums=[4,9,16,25,30]; return {nums:shuffle(nums), rule:'squares'}; },
+    ()=>{ const evens=[2,4,6,8].map(x=>x+rnd(0,3)*2); const odd = pick([3,5,7,9,11]); const nums=[...evens.slice(0,4), odd]; return {nums:shuffle(nums)}; },
+  ];
+  let m = pick(modes)();
+  let nums = m.nums;
+  // determine odd one by rule: assume last generated approach uses computed distinctness; recompute robustly:
+  // find element with different parity majority, else use provided oddIdx
+  let oddValue;
+  if(m.oddIdx!==undefined){ oddValue = m.nums[m.oddIdx]; }
+  else {
+    // squares case: 30 is not a perfect square
+    const squares = nums.filter(n=>Number.isInteger(Math.sqrt(n)));
+    if(squares.length===nums.length-1){ oddValue = nums.find(n=>!Number.isInteger(Math.sqrt(n))); }
+    else {
+      const evens = nums.filter(n=>n%2===0);
+      const odds = nums.filter(n=>n%2!==0);
+      oddValue = evens.length>odds.length ? odds[0] : evens[0];
+    }
+  }
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const grid = document.createElement('div'); grid.className='choiceGrid grid4';
+  shuffle(nums).forEach(n=>{
+    const b=document.createElement('button'); b.className='choiceBtn center'; b.textContent=n;
+    b.onclick=()=>{
+      Array.from(grid.children).forEach(x=>x.disabled=true);
+      const correct = n===oddValue;
+      b.classList.add(correct?'correct':'wrong');
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ RULE FOUND':'✗ WRONG PICK'}),450);
+    };
+    grid.appendChild(b);
+  });
+  stage.appendChild(grid);
+  modalStage.appendChild(stage);
+  startTimerBar(12, ()=>resolveOutcome(false,{msg:'✗ TIME UP'}));
+}
+
+// =========================================================================
+// MINIGAME: Marble Jar (untimed, accuracy based)
+// =========================================================================
+function gameMarbleJar(){
+  openModal('STRENGTH · MARBLE JAR');
+  modalTitle.textContent = 'Marble Jar';
+  modalBody.textContent = 'Estimate the number of marbles in the jar. No timer — but be reasonably close to pass (within 20%).';
+  const actual = rnd(30,90);
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const jar = document.createElement('div'); jar.className='marbleJar';
+  const colors=['#e74c3c','#3498db','#f1c40f','#9b59b6','#2ecc71','#e67e22'];
+  for(let i=0;i<actual;i++){
+    const m=document.createElement('div'); m.className='marble';
+    const size = rnd(10,16);
+    m.style.width=size+'px'; m.style.height=size+'px';
+    m.style.left = rnd(4,190)+'px';
+    m.style.top = rnd(4,240)+'px';
+    m.style.background = pick(colors);
+    jar.appendChild(m);
+  }
+  stage.appendChild(jar);
+  const inputRow = document.createElement('div'); inputRow.className='inputRow';
+  const input = document.createElement('input'); input.className='textInput'; input.type='number'; input.placeholder='Guess';
+  const submit = document.createElement('button'); submit.className='submitBtn'; submit.textContent='Lock In';
+  submit.onclick=()=>{
+    submit.disabled=true; input.disabled=true;
+    const guess = parseInt(input.value)||0;
+    const diff = Math.abs(guess-actual)/actual;
+    const correct = diff<=0.20;
+    setTimeout(()=>resolveOutcome(correct,{msg:correct?`✓ CLOSE ENOUGH (${actual})`:`✗ TOO FAR OFF (${actual})`}),400);
+  };
+  inputRow.appendChild(input); inputRow.appendChild(submit);
+  stage.appendChild(inputRow);
+  modalStage.appendChild(stage);
+  footerHint.textContent = 'Take your time — precision matters more than speed here.';
+}
+
+// =========================================================================
+// MINIGAME: Solve for X
+// =========================================================================
+function gameSolveForX(){
+  openModal('STRENGTH · SOLVE FOR X');
+  modalTitle.textContent = 'Solve for X';
+  const a = rnd(2,9), x = rnd(-8,12), b = rnd(-10,10);
+  const c = a*x+b;
+  modalBody.textContent = `Solve: ${a}x ${b>=0?'+ '+b:'- '+Math.abs(b)} = ${c}`;
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const inputRow = document.createElement('div'); inputRow.className='inputRow';
+  const input = document.createElement('input'); input.className='textInput'; input.type='number'; input.placeholder='x =';
+  const submit = document.createElement('button'); submit.className='submitBtn'; submit.textContent='Submit';
+  const submitFn=()=>{
+    submit.disabled=true; input.disabled=true;
+    const correct = parseInt(input.value)===x;
+    setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ SOLVED':`✗ WRONG (x = ${x})`}),300);
+  };
+  submit.onclick=submitFn;
+  input.onkeydown=(e)=>{ if(e.key==='Enter') submitFn(); };
+  inputRow.appendChild(input); inputRow.appendChild(submit);
+  stage.appendChild(inputRow);
+  modalStage.appendChild(stage);
+  setTimeout(()=>input.focus(),100);
+  startTimerBar(15, ()=>resolveOutcome(false,{msg:`✗ TIME UP (x = ${x})`}));
+}
+
+// =========================================================================
+// MINIGAME: Quick Quiz (trivia)
+// =========================================================================
+function gameQuickQuiz(){
+  openModal('STRENGTH · QUICK QUIZ');
+  const q = pick(triviaBank);
+  modalTitle.textContent = 'Quick Quiz';
+  modalBody.textContent = q.q;
+  modalStage.innerHTML='';
+  const grid = document.createElement('div'); grid.className='choiceGrid';
+  shuffle(q.opts.map((o,i)=>({o,i}))).forEach(item=>{
+    const b=document.createElement('button'); b.className='choiceBtn'; b.textContent=item.o;
+    b.onclick=()=>{
+      Array.from(grid.children).forEach(x=>x.disabled=true);
+      const correct = item.i===q.a;
+      b.classList.add(correct?'correct':'wrong');
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ CORRECT':'✗ INCORRECT'}),450);
+    };
+    grid.appendChild(b);
+  });
+  modalStage.appendChild(grid);
+  startTimerBar(10, ()=>resolveOutcome(false,{msg:'✗ TIME UP'}));
+}
+
+// =========================================================================
+// MINIGAME: Word Guess (Wordle style, simplified single guess with feedback loop)
+// =========================================================================
+function gameWordGuess(){
+  openModal('BULK · WORD GUESS');
+  modalTitle.textContent = 'Word Guess';
+  const word = pick(wordGuessBank);
+  modalBody.textContent = `Guess the 5-letter word. You have 4 tries. Green = right spot, yellow = wrong spot, gray = absent.`;
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const rowsWrap = document.createElement('div');
+  stage.appendChild(rowsWrap);
+  const inputRow = document.createElement('div'); inputRow.className='inputRow';
+  const input = document.createElement('input'); input.className='textInput'; input.maxLength=5; input.style.textTransform='uppercase';
+  const submit = document.createElement('button'); submit.className='submitBtn'; submit.textContent='Guess';
+  inputRow.appendChild(input); inputRow.appendChild(submit);
+  stage.appendChild(inputRow);
+  modalStage.appendChild(stage);
+  setTimeout(()=>input.focus(),100);
+
+  let tries = 0; const maxTries=4;
+  function submitGuess(){
+    const guess = input.value.toUpperCase().trim();
+    if(guess.length!==5) return;
+    tries++;
+    const tileRow = document.createElement('div'); tileRow.className='wordTiles';
+    const wordArr = word.split('');
+    const guessArr = guess.split('');
+    const status = new Array(5).fill('absent');
+    const wCopy = wordArr.slice();
+    for(let i=0;i<5;i++){ if(guessArr[i]===wordArr[i]){ status[i]='correctPos'; wCopy[i]=null; } }
+    for(let i=0;i<5;i++){
+      if(status[i]==='correctPos') continue;
+      const idx = wCopy.indexOf(guessArr[i]);
+      if(idx>-1){ status[i]='wrongPos'; wCopy[idx]=null; }
+    }
+    for(let i=0;i<5;i++){
+      const t=document.createElement('div'); t.className='wordTile '+status[i]; t.textContent=guessArr[i]||'?';
+      tileRow.appendChild(t);
+    }
+    rowsWrap.appendChild(tileRow);
+    input.value='';
+    if(guess===word){
+      submit.disabled=true; input.disabled=true;
+      setTimeout(()=>resolveOutcome(true,{msg:'✓ WORD FOUND'}),500);
+    } else if(tries>=maxTries){
+      submit.disabled=true; input.disabled=true;
+      setTimeout(()=>resolveOutcome(false,{msg:`✗ OUT OF TRIES (${word})`}),500);
+    }
+  }
+  submit.onclick=submitGuess;
+  input.onkeydown=(e)=>{ if(e.key==='Enter') submitGuess(); };
+  footerHint.textContent = `${maxTries} guesses allowed.`;
+}
+
+// =========================================================================
+// MINIGAME: Hangman
+// =========================================================================
+function gameHangman(){
+  openModal('BULK · HANGMAN');
+  modalTitle.textContent = 'Hangman';
+  const word = pick(hiddenWords5).split('');
+  const revealed = new Array(word.length).fill(false);
+  let wrongGuesses = 0; const maxWrong = 5;
+  modalBody.textContent = 'Guess the letters before you run out of attempts.';
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const fig = document.createElement('div'); fig.className='hangmanFig';
+  const wordDisp = document.createElement('div'); wordDisp.className='mathDisplay'; wordDisp.style.letterSpacing='10px';
+  const bank = document.createElement('div'); bank.className='letterBank';
+  function renderWord(){
+    wordDisp.textContent = word.map((l,i)=>revealed[i]?l:'_').join(' ');
+  }
+  function renderFig(){
+    fig.textContent = `Attempts left: ${maxWrong-wrongGuesses}`;
+  }
+  renderWord(); renderFig();
+  stage.appendChild(fig); stage.appendChild(wordDisp); stage.appendChild(bank);
+  modalStage.appendChild(stage);
+
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(L=>{
+    const b=document.createElement('button'); b.className='letterBtn'; b.textContent=L;
+    b.onclick=()=>{
+      b.disabled=true;
+      if(word.includes(L)){
+        word.forEach((l,i)=>{ if(l===L) revealed[i]=true; });
+        renderWord();
+        if(revealed.every(r=>r)){
+          Array.from(bank.children).forEach(x=>x.disabled=true);
+          setTimeout(()=>resolveOutcome(true,{msg:'✓ WORD SOLVED'}),500);
+        }
+      } else {
+        wrongGuesses++; renderFig();
+        if(wrongGuesses>=maxWrong){
+          Array.from(bank.children).forEach(x=>x.disabled=true);
+          setTimeout(()=>resolveOutcome(false,{msg:`✗ HANGED (${word.join('')})`}),500);
+        }
+      }
+    };
+    bank.appendChild(b);
+  });
+}
+
+// =========================================================================
+// MINIGAME: Word Connect
+// =========================================================================
+function gameWordConnect(){
+  openModal('BULK · WORD CONNECT');
+  modalTitle.textContent = 'Word Connect';
+  const set = pick(wordConnectSets);
+  modalBody.textContent = `Which word does NOT share the others' theme (${set.theme} vs. the odd one)?`;
+  modalStage.innerHTML='';
+  const grid = document.createElement('div'); grid.className='choiceGrid grid2';
+  set.words.forEach((w,i)=>{
+    const b=document.createElement('button'); b.className='choiceBtn center'; b.textContent=w;
+    b.onclick=()=>{
+      Array.from(grid.children).forEach(x=>x.disabled=true);
+      const correct = i===set.odd;
+      b.classList.add(correct?'correct':'wrong');
+      setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ SPOTTED THE ODD WORD':'✗ WRONG WORD'}),450);
+    };
+    grid.appendChild(b);
+  });
+  modalStage.appendChild(grid);
+  startTimerBar(10, ()=>resolveOutcome(false,{msg:'✗ TIME UP'}));
+}
+
+// =========================================================================
+// MINIGAME: Word Search (tap first & last letter of hidden word)
+// =========================================================================
+function gameWordSearch(){
+  openModal('BULK · WORD SEARCH');
+  modalTitle.textContent = 'Word Search';
+  const word = pick(hiddenWords5);
+  const size = 6;
+  const grid = new Array(size*size).fill(null).map(()=>String.fromCharCode(65+rnd(0,25)));
+  // place word horizontally in a random row
+  const row = rnd(0,size-1);
+  const startCol = rnd(0, size-word.length);
+  for(let i=0;i<word.length;i++){ grid[row*size+startCol+i] = word[i]; }
+  const firstIdx = row*size+startCol;
+  const lastIdx = row*size+startCol+word.length-1;
+
+  modalBody.textContent = `Find "${word}" hidden in the grid (reading left to right). Tap its FIRST letter, then its LAST letter.`;
+  modalStage.innerHTML='';
+  const stage = document.createElement('div'); stage.className='bigStage';
+  const g = document.createElement('div'); g.className='letterGrid'; g.style.gridTemplateColumns=`repeat(${size},1fr)`;
+  let picks = [];
+  grid.forEach((L,idx)=>{
+    const d=document.createElement('div'); d.textContent=L;
+    d.onclick=()=>{
+      if(picks.includes(idx)) return;
+      picks.push(idx);
+      d.classList.add('picked');
+      if(picks.length===2){
+        Array.from(g.children).forEach(x=>x.onclick=null);
+        const correct = (picks[0]===firstIdx && picks[1]===lastIdx);
+        setTimeout(()=>resolveOutcome(correct,{msg:correct?'✓ WORD LOCATED':`✗ WRONG (${word})`}),450);
+      }
+    };
+    g.appendChild(d);
+  });
+  stage.appendChild(g);
+  modalStage.appendChild(stage);
+  startTimerBar(16, ()=>resolveOutcome(false,{msg:'✗ TIME UP'}));
+}
+
+// =========================================================================
+// START / END
+// =========================================================================
+function startGame(){
+  document.getElementById('startScreen').style.display='none';
+  gameActive = true;
+  buildQueue();
+  currentStep = 0; streak=0; falls=0; correctCount=0; wrongCount=0;
+  updateHud();
+  updateCameraTargets();
+  camera.position.copy(camTargetPos);
+  renderLoop();
+  setTimeout(()=>nextChallenge(), 900);
+}
+
+function endGame(won){
+  gameActive = false;
+  clearTimerBar();
+  closeModal();
+  const endScreen = document.getElementById('endScreen');
+  document.getElementById('endTitle').textContent = won ? 'The Summit' : 'The Fall';
+  document.getElementById('endText').textContent = won
+    ? 'You have climbed all sixty steps, tested by chance, wit, and conscience alike.'
+    : 'Your journey ends here — but the staircase remains, waiting.';
+  document.getElementById('endStats').innerHTML = `
+    <div class="statBox"><div class="n">${currentStep}</div><div class="l">Steps Reached</div></div>
+    <div class="statBox"><div class="n">${correctCount}</div><div class="l">Correct</div></div>
+    <div class="statBox"><div class="n">${wrongCount}</div><div class="l">Wrong</div></div>
+    <div class="statBox"><div class="n">${falls}</div><div class="l">Falls</div></div>
+  `;
+  endScreen.style.display='flex';
+}
+
+// initial idle render before start
+function idleRender(){
+  camera.position.set(6, 3, 8);
+  camera.lookAt(0,2,-2);
+  renderer.render(scene, camera);
+  if(!gameActive) requestAnimationFrame(idleRender);
+}
+idleRender();
+
+</script>
+</body>
+</html>
